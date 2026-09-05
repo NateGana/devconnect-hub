@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevConnect Hub — Feed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#0d1117',
+          panel: '#161b22',
+          panel2: '#1c2129',
+          border: '#30363d',
+          blue: '#58a6ff',
+          green: '#2ea043',
+          purple: '#bc8cff',
+          amber: '#f0883e',
+          txt: '#c9d1d9',
+          muted: '#8b949e',
+        },
+        fontFamily: {
+          sans: ['Inter', 'sans-serif'],
+          mono: ['"JetBrains Mono"', 'monospace'],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  * { scrollbar-width: thin; scrollbar-color: #30363d #0d1117; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #0d1117; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3f4650; }
+  body { background-color: #0d1117; }
+
+  .drawer { transition: transform .28s ease; }
+  .drawer-closed { transform: translateX(-105%); }
+  .drawer-closed-right { transform: translateX(105%); }
+
+  .overlay { transition: opacity .28s ease; }
+
+  @keyframes popIn { from { opacity:0; transform: translateY(-4px) scale(.98);} to { opacity:1; transform: translateY(0) scale(1);} }
+  .pop-in { animation: popIn .18s ease-out; }
+
+  @keyframes toastIn { from { opacity:0; transform: translateY(8px);} to { opacity:1; transform: translateY(0);} }
+  .toast-in { animation: toastIn .2s ease-out; }
+
+  @keyframes pulseDot { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+  .pulse-dot { animation: pulseDot 2s ease-in-out infinite; }
+
+  .editor-tab { position: relative; border: 1px solid transparent; border-bottom: none; }
+  .editor-tab.active { background: #0d1117; border-color: #30363d; }
+  .editor-tab.active::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: #0d1117;
+  }
+
+  textarea, input { outline: none; }
+  textarea:focus, input:focus, select:focus { box-shadow: 0 0 0 1px #58a6ff; }
+
+  .code-block {
+    background: #010409; border: 1px solid #30363d; border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word; color: #c9d1d9;
+  }
+
+  .tag-chip { transition: background .15s ease, color .15s ease, border-color .15s ease; }
+
+  .icon-btn { transition: color .15s ease, transform .1s ease; }
+  .icon-btn:active { transform: scale(0.92); }
+
+  .thread-line { border-left: 1px dashed #30363d; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  input[type="checkbox"].switch { appearance: none; width: 34px; height: 18px; background: #30363d; border-radius: 999px; position: relative; cursor: pointer; transition: background .15s; }
+  input[type="checkbox"].switch:checked { background: #2ea043; }
+  input[type="checkbox"].switch::after { content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#c9d1d9; transition: transform .15s; }
+  input[type="checkbox"].switch:checked::after { transform: translateX(16px); }
+</style>
+</head>
+<body class="bg-bg text-txt font-sans antialiased min-h-screen">
+
+<!-- ============ MOBILE TOPBAR ============ -->
+<header class="lg:hidden sticky top-0 z-30 bg-panel border-b border-border px-4 py-3 flex items-center justify-between">
+  <button id="openSidebarBtn" class="icon-btn text-muted hover:text-txt" aria-label="Open menu">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <a href="#" class="flex items-center gap-1.5 font-mono font-bold text-[15px]">
+    <span class="text-blue">&lt;/&gt;</span><span>DevConnect<span class="text-blue">Hub</span></span>
+  </a>
+  <button id="openRightBtn" class="icon-btn text-muted hover:text-txt" aria-label="Open panel">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V5a2 2 0 0 1 2-2h8.5L20 7.5V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M13 3v5h5"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+  </button>
+</header>
+
+<!-- ============ OVERLAYS ============ -->
+<div id="sidebarOverlay" class="overlay hidden fixed inset-0 bg-black/60 z-30 lg:hidden" onclick="closeSidebar()"></div>
+<div id="rightOverlay" class="overlay hidden fixed inset-0 bg-black/60 z-30 lg:hidden" onclick="closeRight()"></div>
+
+<div class="lg:flex lg:max-w-[1440px] lg:mx-auto">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside id="sidebar" class="drawer drawer-closed lg:translate-x-0 fixed lg:sticky top-0 left-0 h-screen w-[280px] shrink-0 bg-panel border-r border-border z-40 overflow-y-auto">
+    <div class="p-5 flex flex-col gap-6">
+
+      <div class="hidden lg:flex items-center gap-2 font-mono font-bold text-[17px]">
+        <span class="text-blue">&lt;/&gt;</span><span>DevConnect<span class="text-blue">Hub</span></span>
+      </div>
+
+      <button class="lg:hidden self-end -mt-3 -mr-1 text-muted hover:text-txt" onclick="closeSidebar()" aria-label="Close menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <!-- profile card -->
+      <div class="bg-panel2 border border-border rounded-xl p-4">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-full bg-gradient-to-br from-blue to-purple flex items-center justify-center font-mono font-bold text-[13px] text-bg shrink-0">NG</div>
+          <div class="min-w-0">
+            <p class="font-semibold text-[14px] truncate">Naty Gana</p>
+            <p class="text-muted text-[12px] font-mono truncate">@nategana</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1.5 mt-3">
+          <span class="tag-chip text-[10.5px] font-medium px-2 py-0.5 rounded-full bg-blue/10 text-blue border border-blue/30">Student</span>
+          <span class="tag-chip text-[10.5px] font-medium px-2 py-0.5 rounded-full bg-purple/10 text-purple border border-purple/30">Junior Dev</span>
+          <span class="tag-chip text-[10.5px] font-medium px-2 py-0.5 rounded-full bg-green/10 text-green border border-green/30">Full-Stack</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-border text-center">
+          <div><p class="font-mono font-bold text-[14px]">12</p><p class="text-muted text-[10.5px]">posts</p></div>
+          <div><p class="font-mono font-bold text-[14px]">34</p><p class="text-muted text-[10.5px]">followers</p></div>
+          <div><p class="font-mono font-bold text-[14px]">1.2k</p><p class="text-muted text-[10.5px]">rep</p></div>
+        </div>
+      </div>
+
+      <!-- nav -->
+      <nav class="flex flex-col gap-1">
+        <p class="text-muted text-[11px] font-semibold uppercase tracking-wider px-2 mb-1">Navigate</p>
+        <a href="#" data-nav="feed" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-[13.5px] font-medium bg-blue/10 text-blue">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></svg>
+          Feed
+        </a>
+        <a href="#" data-nav="explore" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-[13.5px] font-medium text-muted hover:text-txt hover:bg-white/5">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+          Explore Projects
+        </a>
+        <a href="#" data-nav="snippets" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-[13.5px] font-medium text-muted hover:text-txt hover:bg-white/5">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          Code Snippets
+        </a>
+        <a href="#" data-nav="myposts" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-[13.5px] font-medium text-muted hover:text-txt hover:bg-white/5">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+          My Posts
+        </a>
+        <a href="#" data-nav="bookmarks" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-[13.5px] font-medium text-muted hover:text-txt hover:bg-white/5">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/></svg>
+          Bookmarks
+        </a>
+      </nav>
+
+      <!-- trending tags -->
+      <div>
+        <p class="text-muted text-[11px] font-semibold uppercase tracking-wider px-2 mb-2">Trending Tags</p>
+        <div id="trendingTags" class="flex flex-wrap gap-1.5 px-1"></div>
+      </div>
+
+      <button onclick="resetDemoData()" class="mt-auto text-[11.5px] text-muted hover:text-txt text-left px-2 underline decoration-dotted underline-offset-2">Reset demo data</button>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN FEED ============ -->
+  <main class="flex-1 min-w-0 max-w-2xl mx-auto w-full px-4 py-5 lg:py-6 flex flex-col gap-5">
+
+    <!-- search + filters -->
+    <div class="flex flex-col gap-3">
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="searchInput" type="text" placeholder="Search posts, tags, or authors…" class="w-full bg-panel border border-border rounded-lg pl-9 pr-3 py-2.5 text-[13.5px] placeholder:text-muted focus:border-blue">
+      </div>
+      <div id="filterChips" class="flex gap-2 overflow-x-auto pb-0.5"></div>
+    </div>
+
+    <!-- composer -->
+    <div class="bg-panel border border-border rounded-xl overflow-hidden">
+      <div class="flex bg-panel2 border-b border-border px-2 pt-2 gap-1 overflow-x-auto">
+        <!-- tabs injected by JS -->
+        <div id="composerTabs" class="flex gap-1"></div>
+      </div>
+
+      <div class="p-4 flex flex-col gap-3">
+        <input id="postTitle" type="text" placeholder="Give it a title…" class="w-full bg-panel2 border border-border rounded-lg px-3 py-2 text-[14px] font-medium placeholder:text-muted focus:border-blue">
+
+        <textarea id="postBody" rows="3" placeholder="What's on your mind?" class="w-full bg-panel2 border border-border rounded-lg px-3 py-2.5 text-[13.5px] placeholder:text-muted resize-none focus:border-blue"></textarea>
+
+        <!-- Project Showcase extra fields -->
+        <div id="showcaseFields" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input id="repoUrl" type="text" placeholder="GitHub repo URL" class="bg-panel2 border border-border rounded-lg px-3 py-2 text-[13px] font-mono placeholder:text-muted placeholder:font-sans focus:border-purple">
+          <input id="liveUrl" type="text" placeholder="Live demo URL" class="bg-panel2 border border-border rounded-lg px-3 py-2 text-[13px] font-mono placeholder:text-muted placeholder:font-sans focus:border-purple">
+        </div>
+
+        <!-- Code Help extra fields -->
+        <div id="codeFields" class="hidden flex flex-col gap-2">
+          <select id="codeLang" class="bg-panel2 border border-border rounded-lg px-3 py-2 text-[13px] font-mono focus:border-amber">
+            <option>JavaScript</option><option>Java</option><option>Python</option><option>PHP</option><option>SQL</option><option>Dart</option><option>C#</option>
+          </select>
+          <textarea id="codeSnippet" rows="4" placeholder="// paste the code you need help with" class="code-block w-full px-3 py-2.5 placeholder:text-muted resize-none focus:border-amber"></textarea>
+        </div>
+
+        <!-- Team Finder extra fields -->
+        <div id="teamFields" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input id="rolesNeeded" type="text" placeholder="Roles needed, e.g. UI Designer, QA" class="bg-panel2 border border-border rounded-lg px-3 py-2 text-[13px] placeholder:text-muted focus:border-green">
+          <input id="deadline" type="date" class="bg-panel2 border border-border rounded-lg px-3 py-2 text-[13px] text-muted focus:border-green">
+        </div>
+
+        <!-- tag selector -->
+        <div>
+          <div id="selectedTags" class="flex flex-wrap gap-1.5 mb-1.5"></div>
+          <input id="tagInput" type="text" placeholder="Add tags — press Enter (e.g. firebase)" class="w-full bg-panel2 border border-border rounded-lg px-3 py-2 text-[12.5px] font-mono placeholder:text-muted placeholder:font-sans focus:border-blue">
+        </div>
+
+        <div class="flex items-center justify-between pt-1">
+          <p id="composerHint" class="text-[11.5px] text-muted font-mono">update.md</p>
+          <button onclick="publishPost()" class="flex items-center gap-1.5 bg-blue hover:bg-blue/90 text-bg font-semibold text-[13px] px-4 py-2 rounded-lg transition-colors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Publish Post
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- feed -->
+    <div id="feedList" class="flex flex-col gap-4"></div>
+    <p id="emptyState" class="hidden text-center text-muted text-[13px] py-10">No posts match that search yet. Try a different tag or keyword.</p>
+  </main>
+
+  <!-- ============ RIGHT RAIL ============ -->
+  <aside id="rightRail" class="drawer drawer-closed-right lg:translate-x-0 fixed lg:sticky top-0 right-0 h-screen w-[320px] shrink-0 bg-panel border-l border-border z-40 overflow-y-auto">
+    <div class="p-5 flex flex-col gap-6">
+      <button class="lg:hidden self-end -mt-1 -mr-1 text-muted hover:text-txt" onclick="closeRight()" aria-label="Close panel">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <!-- platform stats -->
+      <div>
+        <p class="text-muted text-[11px] font-semibold uppercase tracking-wider mb-2">Platform Pulse</p>
+        <div class="grid grid-cols-3 gap-2">
+          <div class="bg-panel2 border border-border rounded-lg p-2.5 text-center">
+            <p class="font-mono font-bold text-[15px] text-blue" id="statPosts">—</p>
+            <p class="text-muted text-[10px] mt-0.5">posts today</p>
+          </div>
+          <div class="bg-panel2 border border-border rounded-lg p-2.5 text-center">
+            <p class="font-mono font-bold text-[15px] text-green" id="statOnline">—</p>
+            <p class="text-muted text-[10px] mt-0.5">online now</p>
+          </div>
+          <div class="bg-panel2 border border-border rounded-lg p-2.5 text-center">
+            <p class="font-mono font-bold text-[15px] text-purple" id="statTeams">—</p>
+            <p class="text-muted text-[10px] mt-0.5">open teams</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- looking for collaborators -->
+      <div>
+        <p class="text-muted text-[11px] font-semibold uppercase tracking-wider mb-2">Looking for Collaborators</p>
+        <div id="collabReel" class="flex flex-col gap-2.5"></div>
+      </div>
+
+      <!-- online members -->
+      <div>
+        <p class="text-muted text-[11px] font-semibold uppercase tracking-wider mb-2">Active Now</p>
+        <div id="onlineMembers" class="flex flex-col gap-2.5"></div>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- toast -->
+<div id="toast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-panel2 border border-border rounded-lg px-4 py-2.5 text-[13px] font-medium shadow-xl toast-in"></div>
+
+<script>
+/* ============================================================
+   DATA MODEL
+   ============================================================ */
+const CATEGORY_META = {
+  general:  { label: 'General',    accent: '#58a6ff', file: 'update.md',    dot: 'bg-blue',   tabActive: 'text-blue',   icon: '💬' },
+  showcase: { label: 'Showcase',   accent: '#bc8cff', file: 'showcase.json',dot: 'bg-purple', tabActive: 'text-purple', icon: '🚀' },
+  codehelp: { label: 'Code Help',  accent: '#f0883e', file: 'bug.js',       dot: 'bg-amber',  tabActive: 'text-amber',  icon: '🐛' },
+  team:     { label: 'Team Finder',accent: '#2ea043', file: 'team.yml',     dot: 'bg-green',  tabActive: 'text-green',  icon: '👥' },
+};
+const CATEGORY_ORDER = ['general', 'showcase', 'codehelp', 'team'];
+
+const STORAGE_KEY = 'devconnect_hub_posts_v1';
+
+function seedPosts() {
+  const now = Date.now();
+  const min = 60000, hr = 3600000;
+  return [
+    {
+      id: 'p1', category: 'showcase', authorName: 'Naty Gana', authorRoles: ['Student','Full-Stack'],
+      title: 'Marsline Bus Company — role-based ticketing dashboard',
+      body: 'Shipped the admin dashboard for our System Integration capstone. Cashiers, dispatchers and managers each get a scoped view, built with Firebase Auth custom claims for role gating.',
+      repoUrl: 'github.com/NateGana/marsline-dashboard', liveUrl: 'marsline.example.dev',
+      tags: ['firebase', 'tailwindcss', 'javascript'], upvotes: 24, upvoted: false, bookmarked: false,
+      createdAt: now - hr * 3,
+      comments: [
+        { id: 'c1', authorName: 'Martin', body: 'The role-gating is clean. How are you handling token refresh on claim changes?', upvotes: 4, upvoted: false, code: null,
+          replies: [{ id: 'c1r1', authorName: 'Naty Gana', body: 'Force a token refresh right after the claim-setting Cloud Function resolves — small UX delay but keeps it simple.', upvotes: 2, upvoted: false, code: null }] },
+      ],
+    },
+    {
+      id: 'p2', category: 'codehelp', authorName: 'Klyde', authorRoles: ['Student'],
+      title: 'Firestore onSnapshot firing twice on first load — why?',
+      body: "Every listener I attach runs my callback twice on mount, once with an empty array. Is this the 'pending writes / server' cache thing?",
+      codeLanguage: 'javascript',
+      codeSnippet: "onSnapshot(query(collection(db,'posts')), (snap) => {\n  setPosts(snap.docs.map(d => d.data()));\n});",
+      tags: ['firebase', 'react'], upvotes: 9, upvoted: false, bookmarked: false, solved: true,
+      createdAt: now - hr * 7,
+      comments: [
+        { id: 'c2', authorName: 'Naty Gana', body: "Yep — the first callback is your local cache (metadata.fromCache), the second is the server-confirmed snapshot. Check snap.metadata.fromCache if you want to skip the optimistic one.", upvotes: 6, upvoted: false, code: null, replies: [] },
+      ],
+    },
+    {
+      id: 'p3', category: 'team', authorName: 'Rose', authorRoles: ['Junior Dev'],
+      title: 'HydroTech Solutions — need a UI designer for our IoT irrigation capstone',
+      body: 'MARSLINE-adjacent capstone group building a soil-moisture IoT dashboard in ITP103. Backend and sensors are handled — we need someone to make the dashboard not look like a spreadsheet.',
+      rolesNeeded: ['UI Designer', 'QA Tester'], deadline: '2026-10-15',
+      tags: ['iot', 'figma', 'capstone'], upvotes: 15, upvoted: false, bookmarked: false,
+      createdAt: now - hr * 20,
+      comments: [],
+    },
+    {
+      id: 'p4', category: 'general', authorName: 'Bunao', authorRoles: ['Student'],
+      title: 'Anyone else prepping for OJT interviews this term?',
+      body: "Starting to line up on-the-job-training interviews. What's actually been asked in yours — more DSA basics or more 'walk me through a project you built'?",
+      tags: ['career', 'ojt'], upvotes: 11, upvoted: false, bookmarked: false,
+      createdAt: now - hr * 30,
+      comments: [
+        { id: 'c3', authorName: 'Bernal', body: 'Mostly project walkthroughs for me, plus one SQL join question.', upvotes: 3, upvoted: false, code: null, replies: [] },
+      ],
+    },
+    {
+      id: 'p5', category: 'codehelp', authorName: 'Butin', authorRoles: ['Student'],
+      title: 'MySQL foreign key constraint fails only on seed data',
+      body: 'Works fine when I insert one row at a time in order, fails when I run the seed script. Guessing an ordering issue?',
+      codeLanguage: 'sql',
+      codeSnippet: "ALTER TABLE post_tags\n  ADD CONSTRAINT fk_tag\n  FOREIGN KEY (tag_id) REFERENCES tags(tag_id);\n-- Error 1452: Cannot add or update a child row",
+      tags: ['sql', 'mysql'], upvotes: 6, upvoted: false, bookmarked: false, solved: false,
+      createdAt: now - hr * 44,
+      comments: [],
+    },
+    {
+      id: 'p6', category: 'showcase', authorName: 'Baculinao', authorRoles: ['Full-Stack'],
+      title: 'Weekend build: a Pomodoro timer that syncs across tabs',
+      body: 'Used BroadcastChannel instead of localStorage polling to keep multiple open tabs in sync. Small project but taught me a lot about the Channel Messaging API.',
+      repoUrl: 'github.com/baculinao/tab-pomodoro', liveUrl: 'tab-pomodoro.pages.dev',
+      tags: ['javascript', 'webapi'], upvotes: 8, upvoted: false, bookmarked: false,
+      createdAt: now - hr * 60,
+      comments: [],
+    },
+  ];
+}
+
+let posts = [];
+let currentCategory = 'all';
+let currentTagFilter = null;
+let searchQuery = '';
+let expandedPosts = new Set();
+let selectedTags = [];
+let activeTab = 'general';
+
+/* ============================================================
+   STORAGE
+   ============================================================ */
+function loadPosts() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    posts = raw ? JSON.parse(raw) : seedPosts();
+  } catch (e) { posts = seedPosts(); }
+  if (!posts.length) posts = seedPosts();
+}
+function savePosts() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(posts)); } catch (e) {}
+}
+function resetDemoData() {
+  posts = seedPosts();
+  savePosts();
+  expandedPosts.clear();
+  renderAll();
+  showToast('Demo data reset.');
+}
+
+/* ============================================================
+   DRAWERS (mobile)
+   ============================================================ */
+function openSidebar() {
+  document.getElementById('sidebar').classList.remove('drawer-closed');
+  document.getElementById('sidebarOverlay').classList.remove('hidden');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.add('drawer-closed');
+  document.getElementById('sidebarOverlay').classList.add('hidden');
+}
+function openRight() {
+  document.getElementById('rightRail').classList.remove('drawer-closed-right');
+  document.getElementById('rightOverlay').classList.remove('hidden');
+}
+function closeRight() {
+  document.getElementById('rightRail').classList.add('drawer-closed-right');
+  document.getElementById('rightOverlay').classList.add('hidden');
+}
+document.getElementById('openSidebarBtn').addEventListener('click', openSidebar);
+document.getElementById('openRightBtn').addEventListener('click', openRight);
+
+/* ============================================================
+   COMPOSER TABS
+   ============================================================ */
+function renderComposerTabs() {
+  const wrap = document.getElementById('composerTabs');
+  wrap.innerHTML = CATEGORY_ORDER.map(key => {
+    const m = CATEGORY_META[key];
+    const active = key === activeTab;
+    return `<button onclick="setActiveTab('${key}')"
+      class="editor-tab ${active ? 'active' : ''} flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-[12.5px] font-mono font-medium ${active ? m.tabActive : 'text-muted hover:text-txt'}">
+      <span class="w-1.5 h-1.5 rounded-full ${m.dot}"></span>${m.file}
+    </button>`;
+  }).join('');
+}
+function setActiveTab(key) {
+  activeTab = key;
+  renderComposerTabs();
+  document.getElementById('showcaseFields').classList.toggle('hidden', key !== 'showcase');
+  document.getElementById('codeFields').classList.toggle('hidden', key !== 'codehelp');
+  document.getElementById('teamFields').classList.toggle('hidden', key !== 'team');
+  document.getElementById('composerHint').textContent = CATEGORY_META[key].file;
+  const bodyPlaceholders = {
+    general: "What's on your mind?",
+    showcase: 'What did you build? What was the trickiest part?',
+    codehelp: "Describe the bug — what did you expect vs. what happened?",
+    team: "Describe the project and what you're looking for in teammates.",
+  };
+  document.getElementById('postBody').placeholder = bodyPlaceholders[key];
+}
+
+/* ============================================================
+   TAG SELECTOR (composer)
+   ============================================================ */
+function renderSelectedTags() {
+  const wrap = document.getElementById('selectedTags');
+  wrap.innerHTML = selectedTags.map((t, i) => `
+    <span class="tag-chip flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-blue/10 text-blue border border-blue/30">
+      #${t}
+      <button onclick="removeTag(${i})" class="hover:text-txt leading-none">&times;</button>
+    </span>`).join('');
+}
+function removeTag(i) { selectedTags.splice(i, 1); renderSelectedTags(); }
+document.getElementById('tagInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const raw = e.target.value.trim().replace(/^#/, '').toLowerCase();
+    if (raw && !selectedTags.includes(raw)) { selectedTags.push(raw); renderSelectedTags(); }
+    e.target.value = '';
+  }
+});
+
+/* ============================================================
+   PUBLISH
+   ============================================================ */
+function publishPost() {
+  const title = document.getElementById('postTitle').value.trim();
+  const body = document.getElementById('postBody').value.trim();
+  if (!title || !body) { showToast('Add a title and a bit of body text first.'); return; }
+
+  const post = {
+    id: 'p' + Date.now(),
+    category: activeTab,
+    authorName: 'Naty Gana',
+    authorRoles: ['Student', 'Full-Stack'],
+    title, body,
+    tags: [...selectedTags],
+    upvotes: 0, upvoted: false, bookmarked: false,
+    createdAt: Date.now(),
+    comments: [],
+  };
+
+  if (activeTab === 'showcase') {
+    post.repoUrl = document.getElementById('repoUrl').value.trim();
+    post.liveUrl = document.getElementById('liveUrl').value.trim();
+  }
+  if (activeTab === 'codehelp') {
+    post.codeLanguage = document.getElementById('codeLang').value;
+    post.codeSnippet = document.getElementById('codeSnippet').value;
+    post.solved = false;
+  }
+  if (activeTab === 'team') {
+    post.rolesNeeded = document.getElementById('rolesNeeded').value.split(',').map(s => s.trim()).filter(Boolean);
+    post.deadline = document.getElementById('deadline').value;
+  }
+
+  posts.unshift(post);
+  savePosts();
+
+  // reset composer
+  document.getElementById('postTitle').value = '';
+  document.getElementById('postBody').value = '';
+  ['repoUrl','liveUrl','codeSnippet','rolesNeeded','deadline'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  selectedTags = [];
+  renderSelectedTags();
+
+  renderAll();
+  showToast('Post published.');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ============================================================
+   FILTERS
+   ============================================================ */
+function renderFilterChips() {
+  const wrap = document.getElementById('filterChips');
+  const chips = [{ key: 'all', label: 'All', accent: '#58a6ff' }, ...CATEGORY_ORDER.map(k => ({ key: k, label: CATEGORY_META[k].label, accent: CATEGORY_META[k].accent }))];
+  wrap.innerHTML = chips.map(c => {
+    const active = currentCategory === c.key;
+    return `<button onclick="setCategoryFilter('${c.key}')"
+      class="tag-chip whitespace-nowrap text-[12px] font-medium px-3 py-1.5 rounded-full border transition-colors"
+      style="${active ? `background:${c.accent}22;color:${c.accent};border-color:${c.accent}55` : 'background:transparent;color:#8b949e;border-color:#30363d'}">
+      ${c.label}
+    </button>`;
+  }).join('');
+}
+function setCategoryFilter(key) { currentCategory = key; renderFilterChips(); renderFeed(); }
+document.getElementById('searchInput').addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderFeed(); });
+
+function renderTrendingTags() {
+  const counts = {};
+  posts.forEach(p => (p.tags || []).forEach(t => counts[t] = (counts[t] || 0) + 1));
+  const top = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 8);
+  const wrap = document.getElementById('trendingTags');
+  wrap.innerHTML = top.map(([tag, count]) => `
+    <button onclick="filterByTag('${tag}')" class="tag-chip text-[11.5px] font-mono px-2.5 py-1 rounded-full border ${currentTagFilter === tag ? 'bg-blue/15 text-blue border-blue/40' : 'bg-panel2 text-muted border-border hover:text-txt'}">
+      #${tag} <span class="opacity-60">${count}</span>
+    </button>`).join('') || `<p class="text-muted text-[12px]">No tags yet.</p>`;
+}
+function filterByTag(tag) {
+  currentTagFilter = currentTagFilter === tag ? null : tag;
+  renderTrendingTags();
+  renderFeed();
+  closeSidebar();
+}
+
+function getFilteredPosts() {
+  return posts.filter(p => {
+    if (currentCategory !== 'all' && p.category !== currentCategory) return false;
+    if (currentTagFilter && !(p.tags || []).includes(currentTagFilter)) return false;
+    if (searchQuery) {
+      const hay = [p.title, p.body, p.authorName, ...(p.tags || [])].join(' ').toLowerCase();
+      if (!hay.includes(searchQuery)) return false;
+    }
+    return true;
+  });
+}
+
+/* ============================================================
+   TIME FORMAT
+   ============================================================ */
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return 'just now';
+  const m = Math.floor(s / 60); if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60); if (h < 24) return h + 'h ago';
+  const d = Math.floor(h / 24); return d + 'd ago';
+}
+function initials(name) { return name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase(); }
+
+/* ============================================================
+   FEED RENDER
+   ============================================================ */
+function renderFeed() {
+  const list = document.getElementById('feedList');
+  const filtered = getFilteredPosts();
+  document.getElementById('emptyState').classList.toggle('hidden', filtered.length > 0);
+  list.innerHTML = filtered.map(p => renderPostCard(p)).join('');
+}
+
+function renderPostCard(p) {
+  const meta = CATEGORY_META[p.category];
+  const expanded = expandedPosts.has(p.id);
+  const totalComments = (p.comments || []).reduce((n, c) => n + 1 + (c.replies ? c.replies.length : 0), 0);
+
+  let extra = '';
+  if (p.category === 'showcase') {
+    extra = `<div class="flex flex-wrap gap-2 mt-2">
+      ${p.repoUrl ? `<span class="flex items-center gap-1 text-[11.5px] font-mono text-muted bg-panel2 border border-border rounded-md px-2 py-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55v-1.94c-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.6.24 2.76.12 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.42.36.78 1.08.78 2.17v3.21c0 .3.21.66.79.55A10.52 10.52 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5Z"/></svg>${p.repoUrl}</span>` : ''}
+      ${p.liveUrl ? `<span class="flex items-center gap-1 text-[11.5px] font-mono text-purple bg-purple/10 border border-purple/30 rounded-md px-2 py-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 0 20 15.3 15.3 0 0 1 0-20Z"/></svg>${p.liveUrl}</span>` : ''}
+    </div>`;
+  } else if (p.category === 'codehelp') {
+    extra = `<div class="mt-2">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-[11px] font-mono text-amber uppercase tracking-wide">${p.codeLanguage || 'code'}</span>
+        <button onclick="toggleSolved('${p.id}')" class="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${p.solved ? 'bg-green/15 text-green border-green/40' : 'bg-panel2 text-muted border-border hover:text-txt'}">
+          ${p.solved ? '✓ Solved' : 'Mark as solved'}
+        </button>
+      </div>
+      <pre class="code-block p-3">${escapeHtml(p.codeSnippet || '')}</pre>
+    </div>`;
+  } else if (p.category === 'team') {
+    extra = `<div class="flex flex-wrap items-center gap-2 mt-2">
+      ${(p.rolesNeeded || []).map(r => `<span class="text-[11px] font-medium px-2 py-1 rounded-md bg-green/10 text-green border border-green/30">${escapeHtml(r)}</span>`).join('')}
+      ${p.deadline ? `<span class="text-[11px] font-mono text-muted">deadline: ${p.deadline}</span>` : ''}
+    </div>`;
+  }
+
+  const tags = (p.tags || []).map(t => `<button onclick="filterByTag('${t}')" class="text-[11px] font-mono text-blue/90 hover:underline">#${t}</button>`).join(' ');
+
+  return `
+  <article class="pop-in bg-panel border border-border rounded-xl p-4" style="border-left:3px solid ${meta.accent}">
+    <div class="flex items-start justify-between gap-2">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue to-purple flex items-center justify-center font-mono font-bold text-[11px] text-bg shrink-0">${initials(p.authorName)}</div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <p class="font-semibold text-[13.5px] truncate">${escapeHtml(p.authorName)}</p>
+            <span class="text-muted text-[11px]">${(p.authorRoles || [])[0] || ''}</span>
+          </div>
+          <p class="text-muted text-[11.5px] font-mono">${timeAgo(p.createdAt)}</p>
+        </div>
+      </div>
+      <span class="shrink-0 flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded-full" style="background:${meta.accent}1f;color:${meta.accent}">
+        ${meta.icon} ${meta.label}
+      </span>
+    </div>
+
+    <h3 class="font-semibold text-[15px] mt-3 leading-snug">${escapeHtml(p.title)}</h3>
+    <p class="text-[13.5px] text-txt/90 mt-1 leading-relaxed whitespace-pre-wrap">${escapeHtml(p.body)}</p>
+    ${extra}
+    ${tags ? `<div class="flex flex-wrap gap-2 mt-2.5">${tags}</div>` : ''}
+
+    <div class="flex items-center gap-4 mt-3.5 pt-3 border-t border-border">
+      <button onclick="toggleUpvote('${p.id}')" class="icon-btn flex items-center gap-1.5 text-[12.5px] font-medium ${p.upvoted ? 'text-blue' : 'text-muted hover:text-txt'}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="${p.upvoted ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+        ${p.upvotes}
+      </button>
+      <button onclick="toggleComments('${p.id}')" class="icon-btn flex items-center gap-1.5 text-[12.5px] font-medium text-muted hover:text-txt">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/></svg>
+        ${totalComments}
+      </button>
+      <button onclick="toggleBookmark('${p.id}')" class="icon-btn flex items-center gap-1.5 text-[12.5px] font-medium ${p.bookmarked ? 'text-purple' : 'text-muted hover:text-txt'} ml-auto">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="${p.bookmarked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/></svg>
+      </button>
+      <button onclick="sharePost('${p.id}')" class="icon-btn flex items-center gap-1.5 text-[12.5px] font-medium text-muted hover:text-txt">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>
+      </button>
+    </div>
+
+    ${expanded ? renderCommentSection(p) : ''}
+  </article>`;
+}
+
+function renderCommentSection(p) {
+  const comments = p.comments || [];
+  return `
+  <div class="mt-3 pt-3 border-t border-border flex flex-col gap-3">
+    ${comments.map(c => renderComment(p.id, c)).join('') || `<p class="text-muted text-[12px]">No comments yet — be the first.</p>`}
+
+    <div class="flex flex-col gap-1.5 mt-1">
+      <div class="flex items-center gap-2">
+        <input id="commentInput-${p.id}" type="text" placeholder="Write a comment…" class="flex-1 bg-panel2 border border-border rounded-lg px-3 py-1.5 text-[12.5px] placeholder:text-muted focus:border-blue">
+        <label class="flex items-center gap-1.5 text-[10.5px] text-muted shrink-0">
+          <input type="checkbox" class="switch" id="commentCodeToggle-${p.id}" onchange="toggleCommentCodeInput('${p.id}')"> code
+        </label>
+      </div>
+      <textarea id="commentCode-${p.id}" rows="3" placeholder="// optional code" class="code-block hidden px-3 py-2 placeholder:text-muted resize-none focus:border-blue"></textarea>
+      <button onclick="addComment('${p.id}')" class="self-end text-[12px] font-semibold text-bg bg-blue hover:bg-blue/90 px-3 py-1.5 rounded-lg mt-1">Reply</button>
+    </div>
+  </div>`;
+}
+
+function renderComment(postId, c, isReply=false) {
+  const replies = (c.replies || []).map(r => renderComment(postId, r, true)).join('');
+  return `
+  <div class="${isReply ? 'ml-8 mt-2 thread-line pl-3' : ''}">
+    <div class="flex items-start gap-2.5">
+      <div class="w-7 h-7 rounded-full bg-panel2 border border-border flex items-center justify-center font-mono font-semibold text-[10px] text-muted shrink-0">${initials(c.authorName)}</div>
+      <div class="min-w-0 flex-1">
+        <div class="bg-panel2 border border-border rounded-lg px-3 py-2">
+          <div class="flex items-center gap-2">
+            <p class="font-semibold text-[12.5px]">${escapeHtml(c.authorName)}</p>
+          </div>
+          <p class="text-[12.5px] text-txt/90 mt-0.5 whitespace-pre-wrap">${escapeHtml(c.body)}</p>
+          ${c.code ? `<pre class="code-block p-2 mt-1.5 text-[11.5px]">${escapeHtml(c.code)}</pre>` : ''}
+        </div>
+        <div class="flex items-center gap-3 mt-1 ml-1">
+          <button onclick="toggleCommentUpvote('${postId}','${c.id}')" class="icon-btn flex items-center gap-1 text-[11px] font-medium ${c.upvoted ? 'text-blue' : 'text-muted hover:text-txt'}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="${c.upvoted ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+            ${c.upvotes}
+          </button>
+        </div>
+      </div>
+    </div>
+    ${replies}
+  </div>`;
+}
+
+function toggleCommentCodeInput(postId) {
+  document.getElementById('commentCode-' + postId).classList.toggle('hidden');
+}
+
+/* ============================================================
+   INTERACTIONS
+   ============================================================ */
+function findPost(id) { return posts.find(p => p.id === id); }
+
+function toggleUpvote(id) {
+  const p = findPost(id); if (!p) return;
+  p.upvoted = !p.upvoted;
+  p.upvotes += p.upvoted ? 1 : -1;
+  savePosts(); renderFeed();
+}
+function toggleBookmark(id) {
+  const p = findPost(id); if (!p) return;
+  p.bookmarked = !p.bookmarked;
+  savePosts(); renderFeed();
+  showToast(p.bookmarked ? 'Saved to bookmarks.' : 'Removed from bookmarks.');
+}
+function toggleSolved(id) {
+  const p = findPost(id); if (!p) return;
+  p.solved = !p.solved;
+  savePosts(); renderFeed();
+}
+function toggleComments(id) {
+  if (expandedPosts.has(id)) expandedPosts.delete(id); else expandedPosts.add(id);
+  renderFeed();
+}
+function sharePost(id) {
+  showToast('Link copied to clipboard.');
+}
+function addComment(postId) {
+  const p = findPost(postId); if (!p) return;
+  const input = document.getElementById('commentInput-' + postId);
+  const codeInput = document.getElementById('commentCode-' + postId);
+  const body = input.value.trim();
+  if (!body) return;
+  const comment = { id: 'c' + Date.now(), authorName: 'Naty Gana', body, upvotes: 0, upvoted: false, code: codeInput.classList.contains('hidden') ? null : (codeInput.value.trim() || null), replies: [] };
+  p.comments = p.comments || [];
+  p.comments.push(comment);
+  expandedPosts.add(postId);
+  savePosts(); renderFeed();
+}
+function toggleCommentUpvote(postId, commentId) {
+  const p = findPost(postId); if (!p) return;
+  function walk(list) {
+    for (const c of list) {
+      if (c.id === commentId) { c.upvoted = !c.upvoted; c.upvotes += c.upvoted ? 1 : -1; return true; }
+      if (c.replies && walk(c.replies)) return true;
+    }
+    return false;
+  }
+  walk(p.comments || []);
+  savePosts(); renderFeed();
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  el.classList.add('toast-in');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 2200);
+}
+
+/* ============================================================
+   RIGHT RAIL CONTENT
+   ============================================================ */
+const ONLINE_MEMBERS = [
+  { name: 'Klyde', role: 'Student' },
+  { name: 'Martin', role: 'Full-Stack' },
+  { name: 'Rose', role: 'Junior Dev' },
+  { name: 'Bernal', role: 'Student' },
+];
+function renderRightRail() {
+  const teamPosts = posts.filter(p => p.category === 'team').slice(0, 3);
+  document.getElementById('collabReel').innerHTML = teamPosts.map(p => `
+    <div class="bg-panel2 border border-border rounded-lg p-3">
+      <p class="font-semibold text-[12.5px] leading-snug">${escapeHtml(p.title)}</p>
+      <div class="flex flex-wrap gap-1 mt-1.5">
+        ${(p.rolesNeeded || []).map(r => `<span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green/10 text-green border border-green/30">${escapeHtml(r)}</span>`).join('')}
+      </div>
+      <button onclick="showToast('Interest sent to ${escapeHtml(p.authorName)}.')" class="mt-2 text-[11px] font-semibold text-bg bg-green hover:bg-green/90 px-2.5 py-1 rounded-md">I'm interested</button>
+    </div>
+  `).join('') || `<p class="text-muted text-[12px]">No open team posts right now.</p>`;
+
+  document.getElementById('onlineMembers').innerHTML = ONLINE_MEMBERS.map(m => `
+    <div class="flex items-center gap-2.5">
+      <div class="relative shrink-0">
+        <div class="w-8 h-8 rounded-full bg-panel2 border border-border flex items-center justify-center font-mono font-semibold text-[10.5px] text-muted">${initials(m.name)}</div>
+        <span class="pulse-dot absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green border-2 border-panel"></span>
+      </div>
+      <div class="min-w-0">
+        <p class="text-[12.5px] font-medium truncate">${m.name}</p>
+        <p class="text-[10.5px] text-muted truncate">${m.role}</p>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('statPosts').textContent = posts.filter(p => Date.now() - p.createdAt < 86400000).length;
+  document.getElementById('statOnline').textContent = ONLINE_MEMBERS.length + 1;
+  document.getElementById('statTeams').textContent = posts.filter(p => p.category === 'team').length;
+}
+
+/* ============================================================
+   UTIL
+   ============================================================ */
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function renderAll() {
+  renderComposerTabs();
+  setActiveTab(activeTab);
+  renderSelectedTags();
+  renderFilterChips();
+  renderTrendingTags();
+  renderFeed();
+  renderRightRail();
+}
+loadPosts();
+renderAll();
+</script>
+</body>
+</html>
